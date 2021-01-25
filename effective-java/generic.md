@@ -188,3 +188,94 @@ Collection<?>에 어떤 원소도 넣지 못하고, 꺼낼 수 있는 객체의 
 
 ![image-20210112210303624](./images/image-20210112210303624.png)
 
+
+
+### 아이템 27. 비검사 경고를 제거하라
+
+제네릭 사용하기 시작하면 수많은 컴파일러 경고를 보게 된다.
+
+- 비검사 형변환 경고
+- 비검사 메서드 호출 경고
+- 비검사 매개변수화 가변인수 타입 경고
+- 비검사 변환 경고
+
+#### **할 수 있는 한 모든 비검사 경고를 제거하라**
+
+```java
+Set<Lark> exaltation = new HashSet(); // required: Set<Lark> found: HashSet 
+
+Set<Lark> exaltation = new HashSet<>(); //다이아몬드 연산자만으로 해결 가능
+```
+
+모든 비검사 경고를 제거한다면 그 코드는 타입 안정성이 보장된다.
+
+- 즉, 런타임에  ClassCastException이 발생할 일이 없고, 의도한대로 잘 동작하리라 확신할 수 있다.
+
+
+
+#### 경고를 제거할 수 없지만 타입 안전하다고 확신한다면 @SuppressWarnings("unchecked") 애너테이션을 달아 경고를 숨기자.
+
+단, 타입 안전함을 검증하지 않은 채 경로를 숨기면 스스로에게 잘못된 보안 인식을 심어주는 꼴이다.
+
+- 경고 없이 컴파일 되지만, 런타임에는 여전히 ClassCastException을 던질 수 있다.
+
+한편, 안전하다고 검증된 비검사 경고를 숨기지 않고 그대로 두면, 진짜 문제를 알리는 새로운 경고가 나와도 눈치채지 못할 수 있다.
+
+- 제거하지 않은 수많은 거짓 경고 속에 새로운 경고가 파묻힐것이기 때문
+
+#### **@SuppressWarnings 애너테이션은 항상 가능한 좁은 범위에 적용하자.**
+
+절대로 클래스 전체에 적용해서는 안된다.
+
+한줄이 넘는 메서드나 생성자에 달린 @SuppressWarnings 애너테이션을 발견하면 지역변수 선언 쪽으로 옮기자.
+
+```java
+//ArrayList의 toArray
+public <T> T[] toArray(T[] a) {
+  if (a.length < size) {
+  	return (T[])Arrays.copyOf(elements, size, a.getClass()); // Unchecked cast: 'java.lang.Object[]' to 'T[]' 
+  }
+  System.arraycopy(elements, 0, a, 0, size);
+
+  if (a.length > size) {
+  	a[size] = null;
+  }
+  return a;
+}
+
+// 지역변수를 추가해 @SuppressWarnings의 범위를 좁힌다.
+public <T> T[] toArray(T[] a) {
+  if (a.length < size) {
+    @SuppressWarnings("unchecked")
+    T[] result = (T[])Arrays.copyOf(elements, size, a.getClass());
+    return result;
+  }
+  System.arraycopy(elements, 0, a, 0, size);
+
+  if (a.length > size) {
+  	a[size] = null;
+  }
+  return a;
+}
+```
+
+
+
+#### @SuppressWarnings("unchecked") 애너테이션을 사용할 때면 그 경고를 무시해도 안전한 이유를 항상 주석으로 남겨라
+
+다른 사람이 그 코드를 이해하는데 도움이 되며, 더 중요하게는, 다른 사람이 그 코드를 잘못 수정하여 타입 안정성을 잃는 상황을 줄여준다.
+
+코드가 안전한 근거가 쉽게 떠오르지 않더라도 끝까지 포기하지 말자. 근거를 찾는 중에 그 코드가 사실은 안전하지 않다는 걸 발견할 수도 있으니 말이다.
+
+
+
+#### 핵심정리
+
+비검사 경고는 중요하니 무시하지 말자.
+
+모든 비검사 경고는 런타임에 ClassCastException을 일으킬 수 있는 잠재적 가능성을 뜻하니 최선을 다해 제거하라.
+
+경고를 없앨 방법을 찾지 못하겠다면, 그 코드가 타입 안전함을 증명하고 가능한 한 범위를 좁혀 @SuppressWarnings("unchecked") 애너테이션으로 경고를 숨겨라
+
+그런 다음 경고를 숨기기로 한 근거를 주석을 남겨라.
+
