@@ -417,3 +417,123 @@ List<String> 인스턴스만 담겠다고 선언한 stringLists배열에는 지�
   - 그래서 둘은 섞어 쓰기란 쉽지 않다.
 - 둘을 섞어 쓰다가 컴파일 오류나 경고를 만나면, 가장 먼저 배열을 리스트로 대체하는 방법을 적용해보자.
 
+
+
+## 아이템 29. 이왕이면 제네릭 타입으로 만들라
+
+클라이언트에서 직접 형변환해야하는 타입보다 제네릭 타입이 더 안전하고 쓰기 편하다.
+
+그러니 새로운 타입을 설계할 때는 형변환 없이도 사용할 수 있도록 하라.
+
+그렇게 하려면 제네릭 타입으로 만들어야 할 경우가 많다.
+
+기존 타입 중 제네릭이 있어야하는게 있다면 제네릭 타입으로 변경하자.
+
+기존 클라이언트에는 아무 영향을 주지 않으면서, 새로운 사용자를 훨씬 편하게 해주는 길이다.
+
+
+
+## 아이템 30. 이왕이면 제네릭 메서드로 만들라
+
+메서드도 제네릭으로 만들 수 있다.
+
+매개변수화 타입을 받는 정적 유틸리티 메서드는 보통 제네릭이다.
+
+- ex : Collections.binarySearch(), Collections.sort()
+
+```java
+// Raw 타입 사용 - 수용 불가!
+public static Set union(Set s1, Set s2) {
+  //Unchecked call to 'HashSet(Collection<? extends E>)' as a member of raw type 'java.util.HashSet' 
+	Set result = new HashSet(s1);
+	//Unchecked call to 'addAll(Collection<? extends E>)' as a member of raw type 'java.util.Set'
+	result.addAll(s2);
+	return result;
+}
+```
+
+경고를 없애려면 이 메서드를 타입 안전하게 만들어야 한다.
+
+메서드 선언에서 세 집합(입력2개, 반환1개)의 원소 타입을 타입 매개변수로 명시하고, 메서드 안에서도 이 타입 매개변수만 사용하게 수정하면 된다.
+
+타입 매개변수 목록은 메서드의 제한자와 반환타입 사이에 온다.
+
+```java
+public static <E> Set<E> union(Set<E> s1, Set<E> s2) {
+	Set<E> result = new HashSet<>(s1);
+	result.addAll(s2);
+	return result;
+}
+```
+
+- 경고없이 컴파일
+- 타입 안전
+- 쓰기 쉬움
+
+
+
+### 제네릭 싱글턴 팩터리 패턴
+
+때때로 불변 객체를 여러 타입으로 활용할 수 있게 만들어야 할 때가 있다.
+
+제네릭은 런타입에 타입 정보가 소거되므로 하나의 객체를 어떤 타입으로든 매개변수화 할 수 있다. 하지만 이렇게 하려면 요청한 타입 매개변수에 맞게 매번 그 객체의 타입을 바꿔주는 정적 팩터리를 만들어야 한다.  -> 이 패턴을 제네릭 싱글턴 팩터리라 한다.
+
+- Collections.reverseOrder() 
+- Collections.emptySet
+
+제네릭 싱글턴 팩터리 패턴을 활용한 항등 함수 구현
+
+```java
+private static UnaryOperator<Object> IDENTITY_FN = (t) -> t;
+
+@SuppressWarnings("unchecked")
+public static <T> UnaryOperator<T> identityFunction() {
+	return (UnaryOperator<T>)IDENTITY_FN;
+}
+
+public static void main(String[] args) {
+	String[] strings = {"삼베", "대마", "나일론"};
+	UnaryOperator<String> sameString = identityFunction();
+	for (String string : strings) {
+		System.out.println(sameString.apply(string));
+	}
+
+	Number[] numbers = {1, 2.0, 3L};
+	UnaryOperator<Number> sameNumber = identityFunction();
+	for (Number number : numbers) {
+		System.out.println(sameNumber.apply(number));
+	}
+}
+```
+
+
+
+### 재귀적 타입 한정(recursive tpye bound)
+
+상대적으로 드물긴 하지만, 자기 자신이 들어간 표현식을 사용하여 타입 매개변수의 허용 범위를 한정 할 수 있다. -> 재귀적 타입 한정
+
+재귀적 타입 한정은 주로 타입의 자연적 순서를 정하는 Comparable 인터페이스와 함께 쓰인다.
+
+Comparable<T>에서 타입 매개변수 T는 비교할 수 있는 원소의 타입을 정의한다.
+
+```java
+// 재귀적 타입 한정을 이용해 상호 비교할 수 있음을 표현했다.
+public static <E extends Comparable<E>> E max(Collection<E> c)
+```
+
+타입 한정인 `<E extends Comparable<E>>`는 `모든 타입 E는 자신과 비교 할 수 있다.`라고 읽을 수 있다.
+
+- 상호 비교 가능하다는 뜻을 아주 정확하게 표현한 것
+
+
+
+### 핵심정리
+
+제네릭 타입과 마찬가지로, 클라이언트에서 입력 매개변수와 반환값을 명시적으로 형변환해야하는 메서드보다 제네릭 메서드가 더 안전하며 사용하기도 쉽다.
+
+타입과 마찬가지로, 메서드도 형변환 없이 사용할 수 있는 편이 좋으며, 많은 경우 그렇게 하려면 제네릭 메서드가 되어야 한다.
+
+역시 타입과 마찬가지로, 형변화 해줘야 하는 기존 메서드는 제네릭하게 만들자.
+
+기존 클라이언트는 그대로 둔 채 새로운 사용자의 삶을 훨씬 편하게 만들어 줄 것이다.
+
