@@ -537,3 +537,167 @@ public static <E extends Comparable<E>> E max(Collection<E> c)
 
 기존 클라이언트는 그대로 둔 채 새로운 사용자의 삶을 훨씬 편하게 만들어 줄 것이다.
 
+
+
+## 아이템 31. 한정적 와일카드를 사용해 API 유연성을 높이라
+
+### 유연성을 극대화하려면 원소의 생산자나 소비자용 입력 매개변수에 와일드카드 타입을 사용하라
+
+
+
+매개변수화 타입은 불공변
+
+List<String>은 List<Object>가 하는 일을 제대로 수행하지 못하니 하위 타입이 될 수 없다. (리스코프 치환 원칙에 어긋남)
+
+불공변 방식보다 유연한 무언가가 필요할때는?
+
+```java
+package com.study.toy.item_31;
+
+import java.util.Stack;
+
+public class StackTest<T> extends Stack<T> {
+    // 와일드 카드 타입을 사용하지 않은 pushAll 메서드
+    // 컴파일은 되지만 완벽하지 않음
+    public void pushAll(Iterable<T> src){
+        for (T t:src){
+            push(t);
+        }
+    }
+}
+```
+
+- Iterable src의 원소타입이 스택의 원소 타입과 일치하면 잘 작동한다.
+
+- Stack<Number>로 선언 후 pushAll(intVal) 호출하면 어떻게 될까? (intVal -> Integer)
+
+  - 매개변수화 타입이 불공변이기 때문에 에러 발생
+  - 해결책 : 한정적 와일드 카드 타입 활용
+    - pushAll의 입력 매개변수 타입은 'E의 Iterable'이 아니라 'E의 하위 타입의 Iterable'이어야 한다.
+    - Iterable<? extends E> = E의 하위 타입의 Iterable
+      - 하위타입이란 자기 자신도 포함하긴하지만 자신을 확장하는 것은 아니기때문에 extends라는 키워드가 딱 어울리지는 않음)
+
+  ```java
+  public static void main(String[] args) {
+    CustomStack<Number> numbers = new CustomStack<>();
+    Iterable<Integer> integers = Arrays.asList(1, 2, 3, 4, 5);
+    numbers.pushAll(integers); // 컴파일에러
+  }
+  ```
+
+  ```java
+  public void pushAll(Iterable<? extends T> src){
+     for (T t:src){
+       push(t);
+     }
+  }
+  ```
+
+```java
+package com.study.toy.item_31;
+
+import java.util.Stack;
+
+public class StackTest<T> extends Stack<T> {
+    // 와일드 카드 타입을 사용하지 않은 popAll 메서드
+    // 컴파일은 되지만 완벽하지 않음
+    public void popAll(Collection<E> dst){
+    	while (!isEmpty()){
+      	dst.add(pop());
+      }
+    }
+}
+```
+
+- Stack<Number>의 원소를 Object용 컬렉션으로 옮기려고 한다면?
+
+  - pushAll와 같이 컴파일 에러 발생
+  - Collection<Object>는 Collection<Number>의 하위타입이 아니기 때문
+  - 해결책 : 와일드 카드 타입 활용
+    - popAll의 입력 매개변수의 타입이 'E의 Collection'이 아니라 'E의 상위 타입의 Collection'이어야 한다.
+    - Collection<? Super E> = E의 상위 타입의 Collection
+
+  ```java
+  public static void main(String[] args) {
+    CustomStack<Number> numbers = new CustomStack<>();
+    Iterable<Integer> integers = Arrays.asList(1, 2, 3, 4, 5);
+    numbers.pushAll(integers);
+  
+    Collection<Object> objects = new ArrayList<>();
+    numbers.popAll(objects); // 컴파일 에러
+  }
+  ```
+
+  ```java
+  public void popAll(Collection<? super E> dst){
+    while (!isEmpty()){
+    	dst.add(pop());
+    }
+  }
+  ```
+
+
+
+**유연성을 극대화하려면 원소의 생산자나 소비자용 입력 매개변수에 와일드카드 타입을 사용하라**
+
+한편, 입력 매개변수가 생산자와 소비자 역할을 동시에 한다면 와일드카드 타입을 써도 좋을게 없다.
+
+- 타입을 정확히 지정해야하는 상황으로, 이때는 와일드카드 타입을 쓰지 말아야 한다.
+
+
+
+### PECS : 와일드카드 타입 사용 기본 원칙
+
+다음 공식을 외워두면 어떤 와일드카드 타입을 써야 하는지 기억하는데 도움된다.
+
+```markdown
+펙스(PECS) : producer-extends, consumer-super
+```
+
+- 매개변수화 타입 T가 생산자라면 <? extends T>를 사용하고 소비자라면 <? Super T>를 사용하라.
+
+
+
+### 반환 타입에는 한정적 와일드카드 타입을 사용하면 안된다
+
+아래 예시에서 반환타입은 여전히 Set<E>임에 주목하자.
+
+- 반환 타입에는 한정적 와일드카드 타입을 사용하면 안된다.
+- 유연성을 높여주기는커녕 클라이언트 코드에서도 와일드타드 타입을 써야하기 때문이다.
+
+```java
+public static <E> Set<E> union(Set<? extends E> s1, Set<? extends E> s2) {
+	Set<E> result = new HashSet<>(s1);
+	result.addAll(s2);
+	return result;
+}
+```
+
+
+
+### Comparable<? super E>
+
+```java
+public static <E extends Comparable<E>> E max(Collection<E> c)
+//와일드카드 타입을 사용해 다듬은 모습
+public static <E extends Comparable<? super E>> E max(Collection<? extends E> c)
+```
+
+- 입력 매개변수에서는 E 인스턴스 생사하므로 List<? Extends E>
+
+- 타입 매개변수에서 E가 Comparable<E>를 확장한다고 정의했는데, 이때 Comparable<E>는 E 인스턴스를 소비한다(선후 관계를 뜻하는 정수를 생산)
+
+  그래서 매개변수화 타입 Comparable<E>를 한정적 와일드카드 타입은 Comparable<? super E>를 대체했다.
+
+- Comparable은 언제나 소비자이므로 일반적으로 Comparable<? super E>를 사용하는 편이 낫다. Comparator도 마찬가지다.
+
+이렇게 까지 복잡하게 만들 가치가 있을까?
+
+- 수정 전 max는 이 리스트를 처리할 수 없다. ScheduledFuture가 Comparable<ScheduledFuture>를 구현하지 않았기 때문
+
+```java
+List<Sche List<ScheduledFuture<?>> scheduledFutures = ...;
+```
+
+
+
