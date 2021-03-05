@@ -675,7 +675,7 @@ public static <E> Set<E> union(Set<? extends E> s1, Set<? extends E> s2) {
 
 
 
-### Comparable<? super E>
+### Comparable을 직접 구현하지 않고, 직접 구현한 다른 타입을 확장한 타입을 지원하기 위해 와일드카드가 필요
 
 ```java
 public static <E extends Comparable<E>> E max(Collection<E> c)
@@ -694,10 +694,57 @@ public static <E extends Comparable<? super E>> E max(Collection<? extends E> c)
 이렇게 까지 복잡하게 만들 가치가 있을까?
 
 - 수정 전 max는 이 리스트를 처리할 수 없다. ScheduledFuture가 Comparable<ScheduledFuture>를 구현하지 않았기 때문
+  - ScheduledFuture가 Delayed의 하위 인터페이스이고, Delayed는 Comparable<Delayed>를 확장했다.
+  - 다시말해, ScheduledFuture의 인스턴스는 다른 ScheduledFuture 인스턴스 뿐만 아니라 Delayed 인스턴스와도 비교 할 수 있어서 수정 전 max가 이 리스트를 거부하는 것이다.
+
+좀더 일반화해서 말하면, **Comparable을 직접 구현하지 않고, 직접 구현한 다른 타입을 확장한 타입을 지원하기 위해 와일드카드가 필요**하다.
 
 ```java
-List<Sche List<ScheduledFuture<?>> scheduledFutures = ...;
+List<ScheduledFuture<?>> scheduledFutures = ...;
+
+public interface ScheduledFuture<V> extends Delayed, Future<V> {}
+public interface Delayed extends Comparable<Delayed> {}
+public interface Comparable<T> {}
 ```
 
 
 
+### 메서드 선언에 타입 매개변수가 한번만 나오면 와일드 카드로 대체하라
+
+타입 매개변수와 와일드카드에는 공통되는 부분이 있어서, 메서드를 정의할 때 둘 중 어느 것을 사용해도 괜찮을 때가 많다.
+
+주어진 리스트에서 명시한 두 인덱스의 아이템들을 교환하는 정적메서드를 두 방식 모두 정의해보자.
+
+```java
+public static <E> void swap(List<E> list,int i ,int j);
+public static void swap(List<?> list,int i,int j);
+```
+
+Public API라면 간단한 두번째가 낫다.
+
+대체적으로 기본 규칙은 이러하다.
+
+메서드 선언에 타입 매개변수가 한번만 나오면 와일드 카드로 대체하라.
+
+- List<?>에는 null 외에는 어떤 값도 넣을수 없다. 와일드카드 타입의 실제 타입을 알려주는 메서드를 만들어 활용하면 된다.
+
+  ```JAVA
+  public static void swap2(List<?> list,int i,int j){
+  	swapHelper(list, i, j);
+  }
+  
+  private static <E> void swapHelper(List<E> list, int i, int j) {
+  	list.set(i, list.set(j, list.get(i)));
+  }
+  ```
+
+swap 메서드 내부에서는 더 복잡한 제네릭 메서드를 이용했지만, 외부에서는 와일드카드 기반의 멋진 선언을 유지할 수 있게 된다.
+
+즉, 메서드를 호출하는 클라이언트는 복잡한 swapHelper의 존재를 모른 채 그 혜택을 누릴 수 있다.
+
+### 핵심정리
+
+- 조금 복잡해지더라도 와일드카드를 적용하면 API가 유연해진다.
+- PECS 공식을 기억하자
+  - 매개변수화 타입 T가 생산자라면 <? extends T>를 사용하고 소비자라면 <? Super T>
+  - Comparable과 Comparator는 언제나 소비자라는 사실을 잊지 말자.
