@@ -748,3 +748,102 @@ swap 메서드 내부에서는 더 복잡한 제네릭 메서드를 이용했지
 - PECS 공식을 기억하자
   - 매개변수화 타입 T가 생산자라면 <? extends T>를 사용하고 소비자라면 <? Super T>
   - Comparable과 Comparator는 언제나 소비자라는 사실을 잊지 말자.
+
+
+
+## 아이템32. 제네릭과 가변인수를 함께 쓸 때는 신중하라
+
+가변인수는 메서드에 넘기는 인수의 개수를 클라이언트가 조절할 수 있게 해주는데, 구현 방식에 허점이 있다.
+
+가변인수 메서드를 호출하면 가변인수를 담기 위한 배열이 자동으로 하나 만들어진다. 그런데 내부로 감춰야 했을 이 배열을 그만 클라이언트에 노출하는 문제가 생겼다. 그 결과 varargs 매개변수에 제네릭이나 매개변수화 타입이 포함되면 알기 어려운 컴파일 경고가 발생한다.
+
+
+
+실체화 불가타입(아이템28 참고)은 런타임에는 컴파일타임보다 타입 관련 정보를 적게 담고 있다. 그리고 거의 모든 제네릭과 매개변수화 타입은 실체화 되지 않는다. 메서드를 선언할 때 실체화 불가 타입으로 varargs 매개변수를 선언하면 컴파일러가 경고를 보낸다.
+
+가변인수 메서드를 호출할 때도 varargs 매개변수가 실체화 불가 타입으로 추론되면, 그 호출에 대해서도 경고를 낸다.
+
+```java
+warning: [unchecked] Possible heap pollution from parameterized vararg type List<String>
+```
+
+매개변수화 타입의 변수가 타입이 다른 객체를 참조하면 **힙 오염**이 발생한다.
+
+- 다른 타입 객체를 참조하는 상홯에서는 컴파일러가 자동 생성한 형변화이 실패할 수 있으니, 제네릭 타입 시스템이 약속한 타입 안전성의 근간이 흔들려 버린다.
+
+```java
+static void dangerous(List<String>... stringLists) {
+  List<Integer> integers = Arrays.asList(42);
+  Object[] objects = stringLists;
+  objects[0] = integers;              // 힙 오염 발생
+  String s = stringLists[0].get(0);   // ClassCastException
+}
+```
+
+- 마지막 줄에 컴파일러가 생성한(보이지 않는) 형변환이 숨어 있어 ClassCastException이 발생한다.
+
+이처럼 제네릭 varargs 배열 매개변수에 값을 저장하는 것은 안전하지 않다.
+
+
+
+### 제네릭 배열을 프로그래머가 직접 생성하는 건 허용하지 않으면서 제네릭 varargs 매개변수를 받는 메서드를 선언 할 수 있게 한 이유는?
+
+제네릭이나 매개변수화 타입의 varargs 매개변수를 받는 메서드가 실무에서 매우 유용하기 때문이다.
+
+자바 라이브러리도 이런 메서드를 여럿 제공한다. (다행히 아래 메서드들은 타입 안전한다.)
+
+- Arrays.asList(T... a)
+- Collections.addAll(Collection<? Super T) c, T... elements)
+- EnumSet.of(E first, E... rest)
+
+
+
+### @SafeVarargs
+
+자바 7에서는 @SafeVarargs 애너테이션이 추가되어 제네릭 가변인수 메서드 작성자가 클라이언트 측에서 발생하는 경고를 숨길 수  있게 되었다.
+
+@SafeVarargs 애너테이션은 메서드 작성자가 그 메서드가 타입 안전함을 보장하는 장치다.
+
+메서드가 안전하게 확실하지 않다면 절대 @SafeVarargs 달아서는 안된다.
+
+#### 메서드가 안전한지 어떻게 확신할 수 있을까?
+
+가변인수 메서드를 호출할 때 varargs 매개변수를 담는 제네릭 배열이 만들어진다.
+
+- 메서드가 이 배열에 아무것도 저장하지 않고
+
+- 그 배열의 참조가 밖으로 노출되지 않는다면
+
+타입안전하다.
+
+즉, varargs 매개변수 배열이 호출자로부터 그 메서드로 순수하게 인수들을 전달하는 일만 한다면(=varargs의 목적) 그 메서드는 안전하다.
+
+varargs 매개변수 배열에 아무것도 저장하지 않고도 타입 안전성을 깰 수 있다.
+
+- 가변인수로 넘어온 매개변수들을 배열에 담아 반환하는 제네릭 메서드
+
+```java
+//자신의 제네릭 매개변수 배열의 참조는 노출
+static <T> T[] toArray(T... args){
+  return args;
+}
+```
+
+이 메서드가 반환하는 배열의 타입은 이 메서드에 인수를 넘기는 컴파일타입에 결정되는데, 그 시점에는 컴파일러에게 충분한 정보가 주어지지 않아 타입을 잘못 판단할 수 있다. 따라서 자신의 varargs 매개변수 배열을 그대로 반환하면 힙 오염을 이 메서드를 호출한 쪽의 콜스택으로까지 전이하는 결과를 낳을 수 있다.
+
+```java
+static <T> T[] pickTwo(T a,T b,T c){
+  Random random = new Random();
+  switch (random.nextInt(3)){
+    case 0: return toArray(a,b);
+    case 1: return toArray(a,c);
+    case 2: return toArray(b,c);
+  }
+  throw new AssertionError();
+}
+```
+
+이 메서드는 제네릭 가변인수를 받는 toArray메서드를 호출한다는 점만 빼면 위험하지 않고 경고도 내지 않을 것이다.
+
+
+
