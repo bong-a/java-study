@@ -845,5 +845,120 @@ static <T> T[] pickTwo(T a,T b,T c){
 
 이 메서드는 제네릭 가변인수를 받는 toArray메서드를 호출한다는 점만 빼면 위험하지 않고 경고도 내지 않을 것이다.
 
+이 메서드를 본 컴파일러는 toArray에 넘길 T 인스턴스 2개를 담을 varargs 매개변수 배열을 만드는 코드를 생성한다. 배열의 타입은 Object[]
+
+- Object[] : pickTwo에 어떤 타입의 객체를 넘기더라도 담을 수 있는 가장 구체적인 타입
+
+그리고 toArray메서드가 돌려준 이 배열이 그대로 pickTwo를 호출한 클라이언트까지 전달된다. 즉, pickTwo는 항상 Object[] 타입배열을 반환한다.
+
+```java
+public static void main(String[] args) {
+  String[] attributes = pickTwo("좋은","빠른","저렴한");
+}
+//Exception in thread "main" java.lang.ClassCastException: [Ljava.lang.Object; cannot be cast to [Ljava.lang.String;
+//	at com.study.toy.item_32.VarArgsTest.main(VarArgsTest.java:19)
+//
+//Process finished with exit code 1
+
+```
+
+문제가 없는 메서드라 별다른 경고 없이 컴파일된다. 하지만 실행하면 ClassCastException을 던진다.
+
+- pickTwo 반환값을 attributes에 저장하기 위해 String[]로 형변환하는 코드를 컴파일러가 자동 생성하고 있다.
+- Object[]은 String[]의 하위 타입이 아니므로 이 형변환은 실패한다.
+
+이 예제는 **제네릭 varargs 매개변수 배열에 다른 메서드가 접근하도록 허영하면 안전하지 않다**는 점을 다시 한번 상기시킨다.
+
+두가지 예외가 있다.
+
+1. @SafeVarargs로 제대로 애노테이트된 또 다른 varargs 메서드에 넘기는 것은 안전하다.
+2. 그저 이 배열 내용의 일부 함수를 호출만 하는(varargs를 받지 않는) 일반 메서드에 넘기는 것도 안전하다.
 
 
+
+```java
+// 제네릭 varargs 매개변수를 안전하게 사용하는 전형적인 예시
+// 임의 개수의 리스트를 인수로받아, 받은 순서대로 그 안의 모든 원소를 하나의 리스트로 옮겨 담아 반환한다.
+@SafeVarargs
+static <T> List<T> flatten(List<? extends T>... lists){
+  List<T> result = new ArrayList<>();
+  for (List<? extends T> list : lists) {
+  	result.addAll(list);
+  }
+  return result;
+}
+```
+
+
+
+#### @SafeVarargs 사용 규칙
+
+- 제네릭이나 매개변수화 타입의 varargs 매개변수르 받는 모든 메서드에 @SafeVarargs를 달아라
+
+  - 그래야 사용자가 헷갈리게 하는 컴파일러 경고를 없앨 수 있다.
+  - 안전하지 않은 varargs 메서드는 절대 작성해서는 안된다.
+
+- 제네릭 varargs 매개변수를 사용하며 힙 오염 경고가 뜨는 메서드가 있다면, 그 메서드가 진짜 안전한지 점검하라
+
+  - 다음 두 조건을 모두 만족하는 제네릭 varargs 메서드는 안전하다.
+
+    - Varargs 매개변수 배열에 아무것도 저장하지 않는다.
+    - 그 배열(혹은 복제본)을 신뢰할 수 없는 코드에 노출하지 않는다.
+
+    
+
+@SafeVarargs 애너테이션만이 유일한 정답이 아니다. '배열보다는 리스트를 사용하라'(아이템28)의 조언에 따라 varargs 매개변수를 List 매개변수로 바꿀 수 있다.
+
+- 이 방식의 장점은 컴파일러가 이 메서드의 타입 안전성을 검증 할 수 있다는 데 있다.
+- 단점은 클라이언트 코드가 살짝 지저분해지고 속도가 조금 느려질 수 있다.
+
+```java
+static <T> List<T> flatten(List<List<? extends T>> lists){
+  List<T> result = new ArrayList<>();
+  for (List<? extends T> list : lists) {
+    result.addAll(list);
+  }
+  return result;
+}
+```
+
+```java
+static <T> List<T> pickTwo(T a, T b, T c) {
+  Random random = new Random();
+  switch (random.nextInt(3)) {
+    case 0:
+    	return Arrays.asList(a, b);
+    case 1:
+    	return Arrays.asList(a, c);
+    case 2:
+    	return Arrays.asList(b, c);
+  }
+  throw new AssertionError();
+}
+```
+
+
+
+### 핵심정리
+
+가변인수와 제네릭은 궁합이 좋지 않다.
+
+가변인수 기능은 배열을 노출하여 추상화가 완벽하지 못하고, 배열과 제네릭의 타입 규칙이 서로 다르기 때문이다.
+
+제네릭 varargs 매개변수는 타입 안전하지는 않지만, 허용된다.
+
+메서드에 제네릭 (혹은 매개변수화된) varargs 매개변수를 사용하고자 한다면, 먼저 그 메서드가 타입 안전한지 확인한 다음 @SafeVarargs 애너테이션을 달아 사용하는데 불편함이 없게끔 하자.
+
+
+
+## 아이템 33. 타입 안전 이종 컨테이너를 고려하라
+
+### 핵심정리
+
+컬렉션 API로 대표되는 일반적인 제네릭 형태에서는 한 컨테이너가 다룰 수 있는 타입 매개변수의 수가 고정되어 있다.
+
+하지만 컨테이너 자체가 아닌 키를 타입 매개변수로 바꾸면 이런 제약이 없는 타입 안전 이종 컨테이너를 만들 수 있다.
+
+타입 안전 이종 컨테이너는 Class를 키로 쓰며, 이런 식으로 쓰이는 Class 객체를 타입 토큰이라 한다.
+
+또한, 직접 구현한 키 타입도 쓸 수 있다. 예컨대 데이터베이스의 행(컨테이너)을 표현한 DatabaseRow 타입에는 제네릭 타입인 Column<T>를 키로 사용할 수 있다.
