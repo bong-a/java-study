@@ -1,0 +1,16 @@
+
+R
+java:S1481"5Remove this unused "scheduledFutures" local variable.(„öý²8Þ§­Ôÿ.
+\
+java:S1128":Remove this unused import 'java.util.EmptyStackException'.(ì¯¨¯ÿÿÿÿÿ8˜ú½Óÿ.
+m
+java:S1149"PReplace the synchronized class "Stack" by an unsynchronized one such as "Deque".(ÔâÎš8“Ñ¼Óÿ.
+a
+java:S1854"DRemove this useless assignment to local variable "scheduledFutures".(„öý²8Þ§­Ôÿ.
+O
+java:S1128
+"-Remove this unused import 'java.util.Vector'.(ÿŒ¸Áÿÿÿÿÿ8˜ú½Óÿ.
+m
+java:S1149"PReplace the synchronized class "Stack" by an unsynchronized one such as "Deque".(ÔâÎš8“Ñ¼Óÿ.
+N
+java:S1128",Remove this unused import 'java.util.Deque'.(³Ã¯¥þÿÿÿÿ8ëÇ´Óÿ.
