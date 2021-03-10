@@ -543,8 +543,6 @@ public static <E extends Comparable<E>> E max(Collection<E> c)
 
 ### 유연성을 극대화하려면 원소의 생산자나 소비자용 입력 매개변수에 와일드카드 타입을 사용하라
 
-
-
 매개변수화 타입은 불공변
 
 List<String>은 List<Object>가 하는 일을 제대로 수행하지 못하니 하위 타입이 될 수 없다. (리스코프 치환 원칙에 어긋남)
@@ -683,7 +681,7 @@ public static <E extends Comparable<E>> E max(Collection<E> c)
 public static <E extends Comparable<? super E>> E max(Collection<? extends E> c)
 ```
 
-- 입력 매개변수에서는 E 인스턴스 생사하므로 List<? Extends E>
+- 입력 매개변수에서는 E 인스턴스 생산하므로 List<? Extends E>
 
 - 타입 매개변수에서 E가 Comparable<E>를 확장한다고 정의했는데, 이때 Comparable<E>는 E 인스턴스를 소비한다(선후 관계를 뜻하는 정수를 생산)
 
@@ -693,7 +691,7 @@ public static <E extends Comparable<? super E>> E max(Collection<? extends E> c)
 
 이렇게 까지 복잡하게 만들 가치가 있을까?
 
-- 수정 전 max는 이 리스트를 처리할 수 없다. ScheduledFuture가 Comparable<ScheduledFuture>를 구현하지 않았기 때문
+- 수정 전 max는 이 리스트`List<ScheduledFuture<?>> scheduledFutures = ...`를 처리할 수 없다. ScheduledFuture가 Comparable<ScheduledFuture>를 구현하지 않았기 때문
   - ScheduledFuture가 Delayed의 하위 인터페이스이고, Delayed는 Comparable<Delayed>를 확장했다.
   - 다시말해, ScheduledFuture의 인스턴스는 다른 ScheduledFuture 인스턴스 뿐만 아니라 Delayed 인스턴스와도 비교 할 수 있어서 수정 전 max가 이 리스트를 거부하는 것이다.
 
@@ -756,8 +754,6 @@ swap 메서드 내부에서는 더 복잡한 제네릭 메서드를 이용했지
 가변인수는 메서드에 넘기는 인수의 개수를 클라이언트가 조절할 수 있게 해주는데, 구현 방식에 허점이 있다.
 
 가변인수 메서드를 호출하면 가변인수를 담기 위한 배열이 자동으로 하나 만들어진다. 그런데 내부로 감춰야 했을 이 배열을 그만 클라이언트에 노출하는 문제가 생겼다. 그 결과 varargs 매개변수에 제네릭이나 매개변수화 타입이 포함되면 알기 어려운 컴파일 경고가 발생한다.
-
-
 
 실체화 불가타입(아이템28 참고)은 런타임에는 컴파일타임보다 타입 관련 정보를 적게 담고 있다. 그리고 거의 모든 제네릭과 매개변수화 타입은 실체화 되지 않는다. 메서드를 선언할 때 실체화 불가 타입으로 varargs 매개변수를 선언하면 컴파일러가 경고를 보낸다.
 
@@ -867,7 +863,7 @@ public static void main(String[] args) {
 - pickTwo 반환값을 attributes에 저장하기 위해 String[]로 형변환하는 코드를 컴파일러가 자동 생성하고 있다.
 - Object[]은 String[]의 하위 타입이 아니므로 이 형변환은 실패한다.
 
-이 예제는 **제네릭 varargs 매개변수 배열에 다른 메서드가 접근하도록 허영하면 안전하지 않다**는 점을 다시 한번 상기시킨다.
+이 예제는 **제네릭 varargs 매개변수 배열에 다른 메서드가 접근하도록 허용하면 안전하지 않다**는 점을 다시 한번 상기시킨다.
 
 두가지 예외가 있다.
 
@@ -893,7 +889,7 @@ static <T> List<T> flatten(List<? extends T>... lists){
 
 #### @SafeVarargs 사용 규칙
 
-- 제네릭이나 매개변수화 타입의 varargs 매개변수르 받는 모든 메서드에 @SafeVarargs를 달아라
+- 제네릭이나 매개변수화 타입의 varargs 매개변수를 받는 모든 메서드에 @SafeVarargs를 달아라
 
   - 그래야 사용자가 헷갈리게 하는 컴파일러 경고를 없앨 수 있다.
   - 안전하지 않은 varargs 메서드는 절대 작성해서는 안된다.
@@ -952,6 +948,55 @@ static <T> List<T> pickTwo(T a, T b, T c) {
 
 
 ## 아이템 33. 타입 안전 이종 컨테이너를 고려하라
+
+### 컨테이너?
+
+객체의 '저장' 이라는 관점에서 가장 유명한 방법 중 하나는 배열(array)이다. 특히나 원시(primitive)타입의 값들을 저장하여 다룰때 배열을 많이 사용한다.
+
+하지만 '크기가 한번 정해지면 바꿀 수 없다' 라고 하는 것은 배열의 가장 큰 단점이며, 그로인한 제약은 상당히 크다.
+
+이러한 문제의 해결 방안으로 java.util 라이브러리에는 컨테이너(container) 클래스 들이 있으며, 그것의 기본 타입들은 List, Set, Queue, Map 이다.
+
+### 타입 안전 이종 컨테이너 패턴은 언제 쓰일까?
+
+Set<E>, Map<K,V> 처럼 **클래스 레벨에서 매개변수화 할 수 있는 타입의 수는 제한적**이다. (ex. Map 은 2개)
+
+**타입의 수에 제약없이 유연하게 필요한 경우,** **특정 타입 외에 다양한 타입을 지원해야하는 경우가 있을 수 있다.** 
+
+예를 들어 데이터베이스의 행은 임의 개수의 열을 가질 수 있는데, 모든 열 타입을 안전하게 이용 하고 싶을 때이다.
+
+### 어떻게 해야할까?
+
+컨테이너 대신 키를 매개변수화한 다음 컨테이너에 값을 넣거나, 뺄때 키 타입을 제공해주면 된다. 
+
+이렇게 하면 제네릭 타입 시스템이 값의 타입이 키와 같음을 보장해 줄 것이다.
+
+이러한 설계 방식을 타입 안전 이종 컨테이너 패턴이라고 한다. 
+
+```java
+public class Favorites{
+	public <T> void putFavorite(Class<T> type, T instance);
+	public <T> getFavorite(Class<T> type);
+}
+```
+
+```java
+public static void main( final String[] args ){
+  Favorites f = new Favorites();
+
+  f.putFavorite(String.class, "java");
+  f.putFavorite(Integer.class, 0xcafebabe);
+  f.putFavorite(Class.class, Favorites.class);
+
+  String favoriteString = f.getFavorite(String.class);
+  int favoriteInteger = f.getFavorite(Integer.class);
+  Class<?> favoriteClass = f.getFavorite(Class.class);
+
+  System.out.printf("%s %x %s %n", favoriteString, favoriteInteger, favoriteClass.getName());
+}
+```
+
+
 
 ### 핵심정리
 
