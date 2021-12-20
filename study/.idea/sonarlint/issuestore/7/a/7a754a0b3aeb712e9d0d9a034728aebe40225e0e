@@ -1,14 +1,0 @@
-
-X	java:S125"<This block of commented-out lines of code should be removed.(©­ìâ8Óïƒ¡/
-:
-java:S2119'"Save and re-use this "Random".(¼İÅf8Òıöù€/
-[
-java:S1854">Remove this useless assignment to local variable "attributes".(˜”ş¹8îÒÿ /
-L
-java:S1481"/Remove this unused "attributes" local variable.(˜”ş¹8îÒÿ /
-R
-java:S1854"5Remove this useless assignment to local variable "s".(´‚×™8ê¸ù€/
-X	java:S125"<This block of commented-out lines of code should be removed.(œáÍò8¿ØÁ¡/
-C
-java:S1481"&Remove this unused "s" local variable.(´‚×™8ê¸ù€/
-C	java:S131)""Add a default case to this switch.(®±¢³ÿÿÿÿÿ8ä‡¿¡/
